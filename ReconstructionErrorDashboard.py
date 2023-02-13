@@ -40,7 +40,7 @@ def retrive_AEmodel_options (sol_files):
     # This is dependent of the file naming policy 
     
     AEmodels_options = []
-    for i, sol in enumerate(solution_files):
+    for i, sol in enumerate(sol_files):
         # Finds Model types in folder
         AEmodel = "_".join(sol.split('_')[:2]) # This is dependent on naming policy
         AEmodels_options.append(AEmodel)
@@ -54,7 +54,7 @@ def retrive_LatentSpace_options (sol_files, AEmodel_type):
     # This is dependent of the file naming policy.
     
     LatentSpace_options = []
-    for i, sol in enumerate(solution_files):
+    for i, sol in enumerate(sol_files):
         # Skippes solutions of other AE model types
         if AEmodel_type in sol:
             # Finds Latent-Space sizes in folder
@@ -70,7 +70,7 @@ def retrive_SolNames_options (sol_files, AEmodel_type, LSpace_size):
     # This is dependent of the file naming policy.
     
     SolNames_options = []
-    for i, sol in enumerate(solution_files):
+    for i, sol in enumerate(sol_files):
         # Skippes solutions of other AE model types
         if AEmodel_type in sol:
             # Finds Latent-Space size of sol
@@ -535,6 +535,9 @@ def update_line_graph(dataset_selected, solution_selected, input_id, input_win, 
                   
 
                 # Retriving Original Data
+                dataset_folder = "_".join(dataset_selected.split('_')[:-1])
+                Data_orig = pd.read_csv(f'../Data/{dataset_folder}/{dataset_selected}.csv')
+                # Getting Selected Window Data
                 orig_ts = Data_orig[(Data_orig['short_ID'] == input_id) & (Data_orig['window_ID'] == input_win)]
                 df_orig = pd.DataFrame()
                 df_orig['days'] = window_col_names
