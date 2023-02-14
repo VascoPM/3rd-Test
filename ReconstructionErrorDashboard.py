@@ -13,15 +13,8 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import json
+from sklearn.preprocessing import StandardScaler
 
-
-# What needs to be done
-# Fix Dropdown options.
-    # For some reason it doesn't update the dateset option, always stays in Kenya
-    # Make it so, when changed, dependent dropdown defaults to first option on list.
-# Fix Line Graph.
-    # Creat Radio Options for Original Scale and Zscore.
-    # Zcore (or inverse it) inside the callback function.
 
 ###########################################################
 # Generic functions used in Dashboard
@@ -83,6 +76,41 @@ def retrive_SolNames_options (sol_files, AEmodel_type, LSpace_size):
 
     return SolNames_options
 
+def zscore_custom(reference_ts, inverse_ts=None, mode='scale-down', all_const_replace = -1):
+    #takes in a numpy arrays of single window profiles and returns them zscored or inverted based on reference, according to mode.
+    
+    # check and adjusting array shape:
+    if reference_ts.shape == (len(reference_ts),):
+        reference_ts = reference_ts.reshape(-1, 1)
+    
+    # check if input is constant (e.g., all -7)
+    not_constant = True
+    if len(set(np.ravel(reference_ts.reshape(1,-1))))<=1:
+        not_constant = False
+
+    if not_constant:
+        #Creats Scaler and  fits it to the reference data    
+        zscore_scaler = StandardScaler()
+        zscore_scaler.fit(reference_ts)
+
+        if mode == 'scale-down':
+            # Zscores window
+            return np.ravel(zscore_scaler.transform(reference_ts))
+
+        elif mode == 'inverse':
+            # Reverse Zscores winodw with reference to the original data (pre-encoding)
+            return np.ravel(zscore_scaler.inverse_transform(inverse_ts))
+    else:
+        # For cases where input is all constant (e.g., -7)
+        if mode == 'scale-down':
+            # Return an array of constants with a designated value (-1)
+            return np.full((len(reference_ts),), all_const_replace)
+        elif mode == 'inverse':
+            # Centers the encoded data arround the original constant value
+            # Does it by removing the mean and adding the constant too all values in array
+            return np.ravel(inverse_ts - np.mean(inverse_ts) + reference_ts[0])
+
+
 ###########################################################
 # Navigating File Structure to find all available solutions
 # First, see list of Datasets used, defined by the solution folders
@@ -134,8 +162,8 @@ navbar = dbc.NavbarSimple(
 # Dropdown W&B Solutions Options
 Dropdown_SolNames = dcc.Dropdown(
     id = 'dropdown-SolNames',
-    # options = SolNames_options,
-    # value = SolNames_options[0],
+    options = SolNames_options,
+    value = SolNames_options[0],
     style = {'color':'Black'}
 )
 
@@ -143,23 +171,23 @@ Dropdown_SolNames = dcc.Dropdown(
 Dropdown_Dataset = dcc.Dropdown(
     id = 'dropdown-Dataset',
     options = Dataset_options,
-    # value = Dataset_options[0],
+    value = Dataset_options[0],
     style = {'color':'Black'}
 )
 
 # Dropdown for Auto Encoder Models Options
 Dropdown_AEmodels = dcc.Dropdown(
     id = 'dropdown-AEmodels',
-    # options = AEmodels_options,
-    # value = AEmodels_options[0],
+    options = AEmodels_options,
+    value = AEmodels_options[0],
     style = {'color':'Black'}
 )
 
 # Dropdown for Latent Space Options
 Dropdown_LatentSpace = dcc.Dropdown(
     id = 'dropdown-LatentSpace',
-    # options = LatentSpace_options,
-    # value = LatentSpace_options[0],
+    options = LatentSpace_options,
+    value = LatentSpace_options[0],
     style = {'color':'Black'}
 )
 
@@ -195,32 +223,43 @@ Radio_LineMode = html.Div(
     ]
 )
 
+#Radio Items Scale Mode
+Radio_LineScale = html.Div([
+    dbc.RadioItems(
+        id = 'scale-linegraph',
+        options = [
+            {'label':'Original', 'value':'orig_scale'},
+            {'label':'Zscore', 'value':'zscore_scale'}
+        ],
+        value = 'orig_scale',
+        inline = True,
+    )
+])
+
 # Manual ID input
-Manual_input = html.Div(
-    [
-        dbc.Input(
-            id= 'id-input',
-            placeholder="ID",
-            type="number",
-            min=Data_reconstruct['short_ID'].min(),
-            max=Data_reconstruct['short_ID'].max(),
-            step=1,
-            style={"width": 150, "height": 25}
-        ),
-        dbc.Input(
-            id= 'window-input',
-            placeholder="Window",
-            type="number",
-            min=Data_reconstruct['window_ID'].min(),
-            max=Data_reconstruct['window_ID'].max(),
-            step=1,
-            style={"width": 150, "height": 25}
-        ),
-        dbc.FormText(id = 'input-under-text', children = f"ID range: [{id_range[0]}, {id_range[1]}]")
-    ]
-)
-
-
+Manual_input = html.Div([
+    dbc.Row([
+            dbc.Input(
+                id = 'id-input',
+                placeholder="ID",
+                type ="number",
+                min =Data_reconstruct['short_ID'].min(),
+                max =Data_reconstruct['short_ID'].max(),
+                step=1,
+                style={"width": 150, "height": 25}
+                ),
+            dbc.Input(
+                id= 'window-input',
+                placeholder="Window",
+                type="number",
+                min=Data_reconstruct['window_ID'].min(),
+                max=Data_reconstruct['window_ID'].max(),
+                step=1,
+                style={"width": 150, "height": 25}
+            )
+    ]),
+    dbc.FormText(id = 'input-under-text', children = f"ID range: [{id_range[0]}, {id_range[1]}]")
+])
 
 ######################################################
 # Overall Layout
@@ -229,10 +268,6 @@ app.layout = html.Div([navbar, html.Br(),
                            dbc.Card([
                                dbc.CardBody([
                                    dbc.Row([
-                                       dbc.Col([
-                                           html.H6('W&B Solution Name'),
-                                           Dropdown_SolNames
-                                       ], width=2),
                                        dbc.Col([
                                            html.H6('Dataset'),
                                            Dropdown_Dataset
@@ -245,6 +280,11 @@ app.layout = html.Div([navbar, html.Br(),
                                            html.H6('Latent Space Size'),
                                            Dropdown_LatentSpace
                                        ], width=2),
+                                       dbc.Col([
+                                           html.H6('W&B Solution Name'),
+                                           Dropdown_SolNames
+                                       ], width=2),
+                                       
                                    ])
                                ])
                            ])
@@ -261,14 +301,28 @@ app.layout = html.Div([navbar, html.Br(),
                                    ],
                                   width=6),
                           dbc.Col([
-                              dbc.Card([
-                                  dbc.CardBody([
-                                      html.H6('Time Credit: Original VS Recontructed'),
-                                      Line_Graph,
-                                      Radio_LineMode,
-                                      Manual_input
+                              dbc.Row([
+                                  dbc.Card([
+                                      dbc.CardBody([
+                                          dbc.Row([
+                                              dbc.Col([
+                                                  html.H6('Time Credit: Original VS Recontructed'),
+                                                  Line_Graph,
+                                              ])
+                                          ]),
+                                          dbc.Row([
+                                              dbc.Col([
+                                                  Radio_LineMode,
+                                                  Manual_input
+                                              ]),
+                                              dbc.Col([
+                                                  dbc.FormText(f"Line Graph Scale:"),
+                                                  Radio_LineScale
+                                              ])
+                                          ])
+                                      ])
                                   ])
-                              ])                             
+                              ]),
                             ],
                               width=6),
                            ]),
@@ -512,8 +566,9 @@ def placeholder_fig (message):
     Input('id-input', 'value'),
     Input('window-input', 'value'),
     Input('scatter-graph', 'clickData'),
+    Input('scale-linegraph', 'value')
 )
-def update_line_graph(dataset_selected, solution_selected, input_id, input_win, clickData):
+def update_line_graph(dataset_selected, solution_selected, input_id, input_win, clickData, scale_mode):
     
     if (clickData is None):
         return placeholder_fig('Select Point on Graph.')
@@ -537,22 +592,43 @@ def update_line_graph(dataset_selected, solution_selected, input_id, input_win, 
                 # Retriving Original Data
                 dataset_folder = "_".join(dataset_selected.split('_')[:-1])
                 Data_orig = pd.read_csv(f'../Data/{dataset_folder}/{dataset_selected}.csv')
-                # Getting Selected Window Data
-                orig_ts = Data_orig[(Data_orig['short_ID'] == input_id) & (Data_orig['window_ID'] == input_win)]
-                df_orig = pd.DataFrame()
-                df_orig['days'] = window_col_names
-                df_orig['values'] = orig_ts[window_col_names].values[0]
-
-                # Selected window data
+                # Getting Selected Window Input Time Series
+                orig_ts = Data_orig[(Data_orig['short_ID'] == input_id) & (Data_orig['window_ID'] == input_win)][window_col_names].to_numpy().reshape(-1, 1)
+                # Getting Selected Window Reconstructed Time Series
                 recons_ts = df_reconstruct[(df_reconstruct['short_ID'] == input_id) & (df_reconstruct['window_ID'] == input_win)]
-                df_recons = pd.DataFrame()
-                df_recons['days'] = window_col_names
-                df_recons['values'] = recons_ts[window_col_names].values[0] 
+                recons_mse = recons_ts['MSE'].values[0]
+                recons_ts = recons_ts[window_col_names].to_numpy().reshape(-1, 1)
+                
+                if scale_mode == 'orig_scale':
+                    # No change need to Input time series
+                    df_orig = pd.DataFrame()
+                    df_orig['days'] = window_col_names
+                    df_orig['values'] = orig_ts
+                    # Invert Zscore Recontructed time series to match Input Scale
+                    recons_ts = zscore_custom(reference_ts = orig_ts, inverse_ts = recons_ts, mode= 'inverse')
+                    # Store it in appropriate format
+                    df_recons = pd.DataFrame()
+                    df_recons['days'] = window_col_names
+                    df_recons['values'] = recons_ts
+                
+                    return line_plot (df_orig, df_recons, recons_mse, input_id, input_win)
+                
+                elif scale_mode == 'zscore_scale':
+                    # Zscore Input time series
+                    orig_ts = zscore_custom(reference_ts = orig_ts, mode='scale-down')
+                    # Store it in appropriate format
+                    df_orig = pd.DataFrame()
+                    df_orig['days'] = window_col_names
+                    df_orig['values'] = orig_ts
+                    # No change needed to Recontructed time series
+                    df_recons = pd.DataFrame()
+                    df_recons['days'] = window_col_names
+                    df_recons['values'] = recons_ts
+                    
+                    return line_plot (df_orig, df_recons, recons_mse, input_id, input_win)
+                    
+                
 
-                return line_plot (df_orig, df_recons, recons_ts['MSE'].values[0], input_id, input_win)
-
-    
-    
 ######################################################    
 # Update Input Boxes
 @app.callback(
