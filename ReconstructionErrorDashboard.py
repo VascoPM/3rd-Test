@@ -684,4 +684,4 @@ def update_input(id_input, window_input, dataset_selected, solution_selected, cl
 ######################################################
 # Running Dashboard
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=True, port=8050)
