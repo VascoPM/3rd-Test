@@ -7,6 +7,7 @@ from dash import Dash, html, dcc, dash_table, Input, Output, State
 import dash_bootstrap_components as dbc
 import os
 import glob
+import time
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -201,15 +202,31 @@ Dropdown_LatentSpace = dcc.Dropdown(
     style = {'color':'Black'}
 )
 
+# Button to Apply Solution
+Apply_Button = html.Div([
+    dbc.Button(
+        children = "Apply",
+        id='apply-button',
+        color="light",
+        outline=False,
+        n_clicks=0,
+        n_clicks_timestamp = time.time(),
+        disabled=True,
+        className="me-1") 
+])
+intial_n_clicks_timestamp = time.time()
+
 ######################################################
 # Scatter Graph Related Componenents
 
 # Dropdown Clustering Options
-Dropdown_ClusteringOptions = dcc.Dropdown(id = 'dropdown-clustering',
-                                  options = clustering_cols,
-                                  value = clustering_cols[-1],
-                                          style = {'color':'Black'}
-                                 )
+Dropdown_ClusteringOptions = dcc.Dropdown(
+    id = 'dropdown-clustering',
+    options = clustering_cols,
+    value = clustering_cols[-1],
+    style = {"width": 150, "height": 35, 'color':'Black', 'display': 'inline-block'}
+)
+
 # Scatter Graph Title using a Card for aesthetic reasons
 Scatter_Graph_Title = dbc.Card(
     html.H5("2D UMAP Representation - Clusters"),
@@ -219,12 +236,14 @@ Scatter_Graph_Title = dbc.Card(
 Scatter_Graph = dcc.Graph(id = 'scatter-graph')
 
 # Dropdown Clustering Options
-Dropdown_ActiveClusters = dcc.Dropdown(id = 'dropdown-ActiveClusters',
-                                       options = np.sort(Data_Sol[clustering_cols[-1]].unique()),
-                                       value = [],
-                                       style = {'color':'Black'},
-                                       multi = True
-                                      )
+Dropdown_ActiveClusters = dcc.Dropdown(
+    id = 'dropdown-ActiveClusters',
+    options = np.sort(Data_Sol[clustering_cols[-1]].unique()),
+    value = [],
+    placeholder = 'All',
+    style = {"width": 150, "height": 35, 'color':'Black', 'display': 'inline-block'},
+    multi = True
+)
 
 ######################################################
 # All Line Plots Graph Related Componenents
@@ -338,27 +357,58 @@ app.layout = html.Div([navbar, html.Br(),
                                        ], width=2),
                                        dbc.Col([
                                            html.H6('W&B Solution Name'),
-                                           Dropdown_SolNames
+                                           Dropdown_SolNames,
+                                           # Apply_Button
+                                       ], width=2),
+                                       dbc.Col([
+                                           dbc.FormText(f"Click to Display Solution"),
+                                           Apply_Button
                                        ], width=2),
                                        
-                                   ])
+                                   ]),
+                                   html.Hr(style = {'border':'2px solid white',
+                                                          "opacity": "unset"}),
                                ])
                            ])
-                        ]),                           
+                        ]),
                        dbc.Row([
                           dbc.Col([
                               dbc.Card([
                                   dbc.CardBody([
-                                      html.H5('Clustering Solution'),
-                                      Dropdown_ClusteringOptions,
-                                      Scatter_Graph_Title,
-                                      Scatter_Graph,
-                                      dbc.Card([
-                                          dbc.CardBody([
-                                              html.H6("Cluster Selection", style={'textAlign': 'left'}),
+                                      dbc.Row([
+                                          dbc.Col([
+                                              html.H6('Clustering Solution:')
+                                          ], width='auto'),
+                                          dbc.Col([
+                                              Dropdown_ClusteringOptions
+                                          ], width='auto'),
+                                          dbc.Col([
+                                              html.H6("Highlighted Clusters:", style={'textAlign': 'left'})
+                                          ], width='auto'),
+                                          dbc.Col([
                                               Dropdown_ActiveClusters
-                                          ])
+                                          ], width=4),
                                       ])
+                                  ])
+                              ]),
+                              dbc.Card([
+                                  dbc.CardBody([
+                                      html.H6('2D-UMAP Represenation'),
+                                      Scatter_Graph
+                                  ])
+                              ]),
+                              
+                              dbc.Card([
+                                  dbc.CardBody([
+                                      dbc.Row([
+                                          dbc.Col([
+                                              html.H6('Cluster Profiles')
+                                          ], width=2),
+                                          dbc.Col([
+                                              MeanMedian_Radioitems
+                                          ])
+                                      ]),
+                                      Cluster_Graph,
                                   ])
                               ])
                           ],
@@ -367,12 +417,6 @@ app.layout = html.Div([navbar, html.Br(),
                           dbc.Col([
                               dbc.Card([
                                   dbc.CardBody([
-                                      dbc.Row([
-                                          html.H6('Scale for All Plots:'),
-                                          Radio_LineScale,
-                                          html.Hr(style = {'border':'2px solid white',
-                                                          "opacity": "unset"})
-                                      ]),
                                       dbc.Row([
                                           dbc.Col([
                                               html.H5('Single ID')
@@ -384,18 +428,7 @@ app.layout = html.Div([navbar, html.Br(),
                                               Manual_input
                                           ])
                                       ]),
-                                      IDvsCluster_Graph,
-                                      html.Hr(style = {'border':'2px solid white',
-                                                          "opacity": "unset"}),
-                                      dbc.Row([
-                                          dbc.Col([
-                                              html.H5('Clusters')
-                                          ], width=2),
-                                          dbc.Col([
-                                              MeanMedian_Radioitems
-                                          ])
-                                      ]),
-                                      Cluster_Graph,
+                                      IDvsCluster_Graph,                                      
                                       html.Hr(style = {'border':'2px solid white',
                                                           "opacity": "unset"}),
                                       html.H5('Aggregate Selected Points'),
@@ -410,6 +443,17 @@ app.layout = html.Div([navbar, html.Br(),
 
 # ######################################################
 # # Callbacks
+
+######################################################
+# Update Apply Button
+@app.callback(
+    Output('apply-button', 'disabled'),
+    Input('dropdown-SolNames', 'value')
+)
+def update_Dropdown_AEmodels(solution_selected):
+    
+    if solution_selected is None:
+        return True # ie., disable button
 
 ######################################################
 # Update Dropdown_AEmodels
@@ -470,14 +514,16 @@ def update_Dropdown_SolNames(dataset_selected, AEmodel_selected, LatentSpace_sel
 ######################################################
 # Update Active Cluster Dropdown
 @app.callback(
-    Output('dropdown-ActiveClusters', 'options'),  
-    Input('dropdown-Dataset', 'value'),    
-    Input('dropdown-SolNames', 'value'),
-    Input('dropdown-AEmodels', 'value'),
-    Input('dropdown-LatentSpace', 'value'),    
-    Input('dropdown-clustering', 'value')
+    Output('dropdown-ActiveClusters', 'options'), 
+    Input('apply-button', 'n_clicks'),
+    Input('dropdown-clustering', 'value'),
+    State('dropdown-Dataset', 'value'),    
+    State('dropdown-SolNames', 'value'),
+    State('dropdown-AEmodels', 'value'),
+    State('dropdown-LatentSpace', 'value'),    
+
 )
-def update_RangeSlider(dataset_selected, solution_selected, AEmodel_selected, LatentSpace_selected, clustering_solution):
+def update_RangeSlider(apply_click, clustering_solution, dataset_selected, solution_selected, AEmodel_selected, LatentSpace_selected):
     
     if (solution_selected is None) or (clustering_solution is None) or (dataset_selected is None):
         return {}    
@@ -497,14 +543,16 @@ def update_RangeSlider(dataset_selected, solution_selected, AEmodel_selected, La
 # Update Scatter plot
 @app.callback(
     Output('scatter-graph', 'figure'),
-    Input('dropdown-Dataset', 'value'),    
-    Input('dropdown-SolNames', 'value'),
-    Input('dropdown-AEmodels', 'value'),
-    Input('dropdown-LatentSpace', 'value'),    
+    Input('apply-button', 'n_clicks'),  
     Input('dropdown-clustering', 'value'),
-    Input('dropdown-ActiveClusters', 'value'),
+    Input('dropdown-ActiveClusters', 'value'),    
+    State('dropdown-Dataset', 'value'),    
+    State('dropdown-SolNames', 'value'),
+    State('dropdown-AEmodels', 'value'),
+    State('dropdown-LatentSpace', 'value'),    
+
 )
-def update_scatter_graph(dataset_selected, solution_selected, AEmodel_selected, LatentSpace_selected, clustering_solution, active_clusters):
+def update_scatter_graph(n_clicks, clustering_solution, active_clusters, dataset_selected, solution_selected, AEmodel_selected, LatentSpace_selected):
     
     # Error Case:
     if (solution_selected is None) or (clustering_solution is None) or (active_clusters is None):
@@ -515,18 +563,14 @@ def update_scatter_graph(dataset_selected, solution_selected, AEmodel_selected, 
         if not active_clusters:
             #########################
             # Pre-Plotting Operations
-            # Load Solution
+            # Load Solution 
             sol_files = retrive_sol_files (dataset_selected)
             SolNames_options = retrive_SolNames_options (sol_files, AEmodel_selected,  LatentSpace_selected)
             #load new solution
             df_sol = pd.read_csv(f'../ModelResults/Clustering/{dataset_selected}/{SolNames_options[solution_selected]}')
-
+                        
             # Local df with relevant clustering solution
             df_clusters = df_sol[['short_ID', 'window_ID', 'UMAP_V1', 'UMAP_V2', clustering_solution]]
-            cols = window_col_names.values.tolist()
-            cols.append('short_ID')
-            cols.append('window_ID')
-            df_clusters = df_clusters.merge(Data_orig[cols], how = 'left', on=['short_ID', 'window_ID'])
 
             #########################
             # Actual Plot
@@ -582,12 +626,8 @@ def update_scatter_graph(dataset_selected, solution_selected, AEmodel_selected, 
 
             # Local df with relevant clustering solution
             df_clusters = df_sol[['short_ID', 'window_ID', 'UMAP_V1', 'UMAP_V2', clustering_solution]]
-            cols = window_col_names.values.tolist()
-            cols.append('short_ID')
-            cols.append('window_ID')
-            df_clusters = df_clusters.merge(Data_orig[cols], how = 'left', on=['short_ID', 'window_ID'])
 
-            # Filtering based of RangeSilder Cluster
+            # Filtering based Active Cluster Dropdown Values
             df_filtered = df_clusters[df_clusters[clustering_solution].isin(active_clusters)]
             df_NegativeFilter = df_clusters[~df_clusters[clustering_solution].isin(active_clusters)]
 
@@ -679,14 +719,20 @@ def placeholder_fig (message):
 # Update Selected IDs Graph
 @app.callback(
     Output('selectedIDs-graph', 'figure'),
+    Input('apply-button', 'n_clicks'), 
     Input('scatter-graph', 'selectedData'),
+    State('dropdown-Dataset', 'value'),        
 )
-def update_AggIDs_graph(selectedData):
+def update_AggIDs_graph(n_clicks, selectedData, dataset_selected):
     if (selectedData is None):
         #Placeholder plot
         return placeholder_fig('Make a Group Selection.')
     
     else:
+        # Loading Relevant Dataset
+        dataset_folder = "_".join(dataset_selected.split('_')[:-1])
+        Data_orig = pd.read_csv(f'../Data/{dataset_folder}/{dataset_selected}.csv')
+
         # Un-Nesting selected points 
         selected_ids = []
         selected_windows = []
@@ -741,14 +787,17 @@ def update_AggIDs_graph(selectedData):
 # Update Clusters plot
 @app.callback(
     Output('Cluster-graph', 'figure'),
-    Input('dropdown-Dataset', 'value'),    
-    Input('dropdown-SolNames', 'value'),
-    Input('dropdown-AEmodels', 'value'),
-    Input('dropdown-LatentSpace', 'value'),    
+    Input('apply-button', 'n_clicks'),
     Input('dropdown-clustering', 'value'),
-    Input('MeanMedian_Radioitems', 'value'),    
+    Input('MeanMedian_Radioitems', 'value'),
+    Input('dropdown-ActiveClusters', 'value'),    
+    State('dropdown-Dataset', 'value'),    
+    State('dropdown-SolNames', 'value'),
+    State('dropdown-AEmodels', 'value'),
+    State('dropdown-LatentSpace', 'value'),    
+
 )
-def update_clusters_graph(dataset_selected, solution_selected, AEmodel_selected, LatentSpace_selected, clustering_solution, radio_option):    
+def update_clusters_graph(n_clicks, clustering_solution, radio_option, active_clusters, dataset_selected, solution_selected, AEmodel_selected, LatentSpace_selected):    
 
     # Error Case:
     if (solution_selected is None) or (clustering_solution is None) or (radio_option is None):
@@ -760,6 +809,15 @@ def update_clusters_graph(dataset_selected, solution_selected, AEmodel_selected,
         SolNames_options = retrive_SolNames_options (sol_files, AEmodel_selected,  LatentSpace_selected)
         #load new solution
         df_sol = pd.read_csv(f'../ModelResults/Clustering/{dataset_selected}/{SolNames_options[solution_selected]}')
+        # Loading Relevant Dataset
+        dataset_folder = "_".join(dataset_selected.split('_')[:-1])
+        Data_orig = pd.read_csv(f'../Data/{dataset_folder}/{dataset_selected}.csv')
+
+        
+        # Loading Relevant Dataset
+        dataset_folder = "_".join(dataset_selected.split('_')[:-1])
+        Data_orig = pd.read_csv(f'../Data/{dataset_folder}/{dataset_selected}.csv')
+        
 
         # Local df with relevant clustering solution
         df_clusters = df_sol[['short_ID', 'window_ID', clustering_solution]]
@@ -768,9 +826,17 @@ def update_clusters_graph(dataset_selected, solution_selected, AEmodel_selected,
         cols.append('window_ID')
         df_clusters = df_clusters.merge(Data_orig[cols], how = 'left', on=['short_ID', 'window_ID'])
         
+        if not active_clusters:
+            plot_clust_profiles = df_clusters[clustering_solution].sort_values().unique()
+        elif active_clusters:
+            plot_clust_profiles = active_clusters
+        else:
+            return {}
+            
+        
         if radio_option == 'mean': 
             fig = go.Figure()
-            for c in df_clusters[clustering_solution].sort_values().unique():
+            for c in plot_clust_profiles:#df_clusters[clustering_solution].sort_values().unique():
                 fig.add_trace(go.Scatter(x=window_col_names,
                                 y= df_clusters[df_clusters[clustering_solution] == c][window_col_names].mean(),
                                 mode='lines',
@@ -778,7 +844,7 @@ def update_clusters_graph(dataset_selected, solution_selected, AEmodel_selected,
                                 ))
         elif radio_option == 'median':
             fig = go.Figure()
-            for c in df_clusters[clustering_solution].sort_values().unique():
+            for c in plot_clust_profiles:#df_clusters[clustering_solution].sort_values().unique():
                 fig.add_trace(go.Scatter(x=window_col_names,
                                 y= df_clusters[df_clusters[clustering_solution] == c][window_col_names].median(),
                                 mode='lines',
@@ -790,7 +856,8 @@ def update_clusters_graph(dataset_selected, solution_selected, AEmodel_selected,
         fig.update_layout(
             margin=dict(l=20, r=20, t=20, b=20),
             template= 'plotly_dark',
-            height = 250
+            height = 250,
+            showlegend = True
         )
     
         return fig 
@@ -799,16 +866,17 @@ def update_clusters_graph(dataset_selected, solution_selected, AEmodel_selected,
 # Update ID vs Cluster Plot
 @app.callback(
     Output('IDvsCluster-graph', 'figure'),
-    Input('dropdown-Dataset', 'value'),    
-    Input('dropdown-SolNames', 'value'),
-    Input('dropdown-AEmodels', 'value'),
-    Input('dropdown-LatentSpace', 'value'),    
+    Input('apply-button', 'n_clicks'),                
     Input('id-input', 'value'),
     Input('window-input', 'value'),
     Input('scatter-graph', 'clickData'),
-    Input('dropdown-clustering', 'value')
+    Input('dropdown-clustering', 'value'),
+    State('dropdown-Dataset', 'value'),    
+    State('dropdown-SolNames', 'value'),
+    State('dropdown-AEmodels', 'value'),
+    State('dropdown-LatentSpace', 'value'),        
 )
-def update_IDvsCluster_graph(dataset_selected, solution_selected, AEmodel_selected, LatentSpace_selected, input_id, input_win, clickData, clustering_solution):
+def update_IDvsCluster_graph(n_clicks , input_id, input_win, clickData, clustering_solution, dataset_selected, solution_selected, AEmodel_selected, LatentSpace_selected):
     
     if (clickData is None):
         return placeholder_fig('Select Point on Graph.')
@@ -818,7 +886,11 @@ def update_IDvsCluster_graph(dataset_selected, solution_selected, AEmodel_select
         else:
             if input_win is None:
                 return placeholder_fig('Type a valid Window.')
-            else:        
+            else:
+                # Loading Relevant Dataset
+                dataset_folder = "_".join(dataset_selected.split('_')[:-1])
+                Data_orig = pd.read_csv(f'../Data/{dataset_folder}/{dataset_selected}.csv')
+                
                 # Retriving Window Time Series
                 selected_id = Data_orig[(Data_orig['short_ID'] == input_id) & (Data_orig['window_ID'] == input_win)]
                 df_id = pd.DataFrame()
@@ -889,16 +961,17 @@ def update_IDvsCluster_graph(dataset_selected, solution_selected, AEmodel_select
     Output('window-input', 'disabled'),
     Output('id-input', 'value'),
     Output('window-input', 'value'),
-    Input('dropdown-Dataset', 'value'),    
-    Input('dropdown-SolNames', 'value'),
-    Input('dropdown-AEmodels', 'value'),
-    Input('dropdown-LatentSpace', 'value'),        
+    Input('apply-button', 'n_clicks'),                
     Input('id-input', 'value'),
     Input('window-input', 'value'),
     Input('scatter-graph', 'clickData'),
     Input('mode-ID-graph', 'value'),
+    State('dropdown-Dataset', 'value'),    
+    State('dropdown-SolNames', 'value'),
+    State('dropdown-AEmodels', 'value'),
+    State('dropdown-LatentSpace', 'value'),            
 )
-def update_input(dataset_selected, solution_selected, AEmodel_selected, LatentSpace_selected, id_input, window_input, clickData, mode_option):
+def update_input(n_clicks, id_input, window_input, clickData, mode_option, dataset_selected, solution_selected, AEmodel_selected, LatentSpace_selected):
     
     if mode_option == 'click_mode':
         #Graph mode
