@@ -16,9 +16,7 @@ from sklearn.preprocessing import StandardScaler
 
 ###########################################################
 # What to do Next
-# Change layout to have Cluster Profiles under Scatter Plot
-# Increase size of Cluster Profiles Plot
-# Link Cluster Profiles Plot to Cluster Selection (same behaviour as Scatter Plot)
+# (Nothing Identified)
 ###########################################################
 
 
